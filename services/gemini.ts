@@ -7,7 +7,7 @@ export const convertToLatexHtml = async (
   textContext: string = ""
 ): Promise<ConversionResult> => {
   // Luôn khởi tạo instance mới để nhận API key mới nhất từ dialog
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.GEMINI.API_KEY });
   
   // Upgrade to gemini-3-pro-preview for complex reasoning tasks including math and structured document conversion
   const modelName = 'gemini-3-pro-preview';
