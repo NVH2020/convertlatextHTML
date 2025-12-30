@@ -6,11 +6,11 @@ export const convertToLatexHtml = async (
   base64Images: string[],
   textContext: string = ""
 ): Promise<ConversionResult> => {
-  // Luôn khởi tạo instance mới để nhận API key mới nhất từ dialog
-  const ai = new GoogleGenAI({ apiKey: process.GEMINI.API_KEY });
+  // Tạo instance mới mỗi lần gọi để đảm bảo lấy đúng API Key hiện tại
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  // Upgrade to gemini-3-pro-preview for complex reasoning tasks including math and structured document conversion
-  const modelName = 'gemini-3-pro-preview';
+  // Sử dụng Gemini 3 Flash cho tốc độ xử lý nhanh và độ tin cậy cao
+  const modelName = 'gemini-3-flash-preview';
   
   const imageParts = base64Images.map(base64 => ({
     inlineData: {
@@ -54,8 +54,6 @@ export const convertToLatexHtml = async (
     return JSON.parse(resultText) as ConversionResult;
   } catch (error: any) {
     console.error("Gemini conversion error:", error);
-    
-    // Ném lỗi nguyên bản để App.tsx có thể bắt được thông báo "Requested entity was not found"
     throw error;
   }
 };
