@@ -7,7 +7,7 @@ export const convertToLatexHtml = async (
   textContext: string = ""
 ): Promise<ConversionResult> => {
   // Tạo instance mới mỗi lần gọi để đảm bảo lấy đúng API Key hiện tại
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.GEMINI.API_KEY });
   
   // Sử dụng Gemini 3 Flash cho tốc độ xử lý nhanh và độ tin cậy cao
   const modelName = 'gemini-3-flash-preview';
