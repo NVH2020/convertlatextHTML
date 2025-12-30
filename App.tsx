@@ -10,8 +10,7 @@ declare global {
     openSelectKey: () => Promise<void>;
   }
   interface Window {
-    // Fixed: Removed 'readonly' modifier from 'aistudio' to prevent modifier mismatch errors during interface merging.
-    aistudio: AIStudio;
+    aistudio?: AIStudio;
   }
 }
 
@@ -19,12 +18,24 @@ const App: React.FC = () => {
   const [currentFile, setCurrentFile] = useState<ProcessingFile | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState<'latex' | 'html'>('latex');
+  const [isAIStudioEnv, setIsAIStudioEnv] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Kiểm tra xem có đang chạy trong môi trường hỗ trợ aistudio hay không
+    if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+      setIsAIStudioEnv(true);
+    }
+  }, []);
 
   const handleSelectKey = async () => {
-    try {
-      await window.aistudio.openSelectKey();
-    } catch (e) {
-      console.error("Không thể mở trình chọn khóa:", e);
+    if (window.aistudio) {
+      try {
+        await window.aistudio.openSelectKey();
+      } catch (e) {
+        console.error("Không thể mở trình chọn khóa:", e);
+      }
+    } else {
+      alert("Tính năng cấu hình API Key chỉ khả dụng trong môi trường AI Studio. Nếu bạn chạy trên Vercel, vui lòng cấu hình API_KEY trong Environment Variables.");
     }
   };
 
@@ -50,7 +61,7 @@ const App: React.FC = () => {
     if (!currentFile) return;
 
     setIsProcessing(true);
-    setCurrentFile(prev => prev ? { ...prev, status: 'processing', progress: 10 } : null);
+    setCurrentFile(prev => prev ? { ...prev, status: 'processing', progress: 10, error: undefined } : null);
 
     try {
       let images: string[] = [];
@@ -61,9 +72,9 @@ const App: React.FC = () => {
         images = await pdfToImages(currentFile.file);
       } else {
         setCurrentFile(prev => prev ? { ...prev, progress: 30 } : null);
-        const { html, images: docImages } = await docxToHtmlAndImages(currentFile.file);
-        context = html;
-        images = docImages.slice(0, 5); 
+        const docResult = await docxToHtmlAndImages(currentFile.file);
+        context = docResult.html;
+        images = docResult.images.slice(0, 5); 
       }
 
       setCurrentFile(prev => prev ? { ...prev, progress: 60 } : null);
@@ -79,8 +90,13 @@ const App: React.FC = () => {
     } catch (err: any) {
       let errorMessage = err.message || "Đã xảy ra lỗi không xác định";
       
-      if (errorMessage.includes("Requested entity was not found") || errorMessage.includes("API_KEY")) {
-        errorMessage = "Lỗi xác thực API. Vui lòng bấm vào 'Cấu hình API Key' bên dưới để thiết lập.";
+      // Xử lý các lỗi phổ biến liên quan đến API Key
+      if (errorMessage.includes("Requested entity was not found") || 
+          errorMessage.includes("API_KEY") || 
+          errorMessage.includes("API key not found")) {
+        errorMessage = isAIStudioEnv 
+          ? "Lỗi xác thực API. Vui lòng bấm vào 'Cấu hình API Key' để thiết lập."
+          : "Thiếu API Key. Nếu bạn đang chạy trên Vercel, hãy đảm bảo đã thêm API_KEY vào mục Settings > Environment Variables của dự án.";
       }
 
       setCurrentFile(prev => prev ? { 
@@ -107,15 +123,18 @@ const App: React.FC = () => {
           </h1>
           <p className="text-slate-500 text-sm">Chuyển đổi tài liệu thông minh bằng AI</p>
         </div>
-        <button 
-          onClick={handleSelectKey}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />
-          </svg>
-          Cấu hình API Key
-        </button>
+        
+        {isAIStudioEnv && (
+          <button 
+            onClick={handleSelectKey}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />
+            </svg>
+            Cấu hình API Key
+          </button>
+        )}
       </header>
 
       <main className="flex-grow space-y-6">
@@ -296,7 +315,9 @@ const App: React.FC = () => {
         </div>
         <div className="flex justify-center gap-6">
            <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-blue-500 transition-colors text-xs font-bold uppercase tracking-widest">Tài liệu API</a>
-           <button onClick={handleSelectKey} className="text-slate-400 hover:text-blue-500 transition-colors text-xs font-bold uppercase tracking-widest">Cài đặt lại Key</button>
+           {isAIStudioEnv && (
+             <button onClick={handleSelectKey} className="text-slate-400 hover:text-blue-500 transition-colors text-xs font-bold uppercase tracking-widest">Cài đặt lại Key</button>
+           )}
         </div>
       </footer>
     </div>
