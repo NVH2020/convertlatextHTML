@@ -1,13 +1,44 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileType, ProcessingFile, ConversionResult } from './types';
 import { pdfToImages, docxToHtmlAndImages, downloadFile } from './utils/converters';
 import { convertToLatexHtml } from './services/gemini';
+
+// Fix: Define the AIStudio interface and update Window augmentation to use the expected type and modifiers
+declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
+  interface Window {
+    readonly aistudio: AIStudio;
+  }
+}
 
 const App: React.FC = () => {
   const [currentFile, setCurrentFile] = useState<ProcessingFile | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState<'latex' | 'html'>('latex');
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    checkApiKey();
+  }, []);
+
+  const checkApiKey = async () => {
+    try {
+      const selected = await window.aistudio.hasSelectedApiKey();
+      setHasApiKey(selected);
+    } catch (e) {
+      setHasApiKey(false);
+    }
+  };
+
+  const handleSelectKey = async () => {
+    await window.aistudio.openSelectKey();
+    setHasApiKey(true); // Giả định thành công theo tài liệu để tránh race condition
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -15,7 +46,7 @@ const App: React.FC = () => {
 
     const type = file.type as FileType;
     if (type !== FileType.PDF && type !== FileType.DOCX) {
-      alert("Please upload only PDF or DOCX files.");
+      alert("Vui lòng chỉ tải lên tệp PDF hoặc DOCX.");
       return;
     }
 
@@ -44,9 +75,7 @@ const App: React.FC = () => {
         setCurrentFile(prev => prev ? { ...prev, progress: 30 } : null);
         const { html, images: docImages } = await docxToHtmlAndImages(currentFile.file);
         context = html;
-        // In a real scenario, we might want to convert the Word document to images 
-        // to give Gemini more visual context, but for simplicity we send text + embedded images.
-        images = docImages.slice(0, 5); // Limit images for token budget
+        images = docImages.slice(0, 5); 
       }
 
       setCurrentFile(prev => prev ? { ...prev, progress: 60 } : null);
@@ -60,11 +89,23 @@ const App: React.FC = () => {
         result 
       } : null);
     } catch (err: any) {
-      setCurrentFile(prev => prev ? { 
-        ...prev, 
-        status: 'error', 
-        error: err.message || "An error occurred" 
-      } : null);
+      const errorMessage = err.message || "Đã xảy ra lỗi không xác định";
+      
+      // Kiểm tra lỗi yêu cầu chọn lại Key
+      if (errorMessage.includes("Requested entity was not found")) {
+        setHasApiKey(false);
+        setCurrentFile(prev => prev ? { 
+          ...prev, 
+          status: 'error', 
+          error: "API Key không hợp lệ hoặc hết hạn. Vui lòng chọn lại API Key." 
+        } : null);
+      } else {
+        setCurrentFile(prev => prev ? { 
+          ...prev, 
+          status: 'error', 
+          error: errorMessage 
+        } : null);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -74,6 +115,32 @@ const App: React.FC = () => {
     setCurrentFile(null);
     setIsProcessing(false);
   };
+
+  if (hasApiKey === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 text-center border border-slate-100">
+          <div className="w-20 h-20 bg-amber-100 rounded-2xl flex items-center justify-center mb-6 mx-auto text-amber-600">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-4">Yêu cầu API Key</h2>
+          <p className="text-slate-600 mb-8 leading-relaxed">
+            Ứng dụng cần API Key để thực hiện chuyển đổi tài liệu. Vui lòng chọn một API Key từ dự án có trả phí của bạn.
+            <br/>
+            <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm block mt-2">Xem hướng dẫn thanh toán</a>
+          </p>
+          <button 
+            onClick={handleSelectKey}
+            className="w-full bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+          >
+            Chọn API Key ngay
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -157,7 +224,10 @@ const App: React.FC = () => {
                 </div>
                 <h4 className="text-xl font-bold text-slate-900 mb-2">Đã xảy ra lỗi</h4>
                 <p className="text-slate-600 mb-6">{currentFile.error}</p>
-                <button onClick={processFile} className="bg-slate-900 text-white px-8 py-2 rounded-full">Thử lại</button>
+                <div className="flex justify-center gap-4">
+                   <button onClick={reset} className="px-6 py-2 text-slate-600 hover:bg-slate-100 rounded-full font-medium transition-colors">Hủy</button>
+                   <button onClick={processFile} className="bg-slate-900 text-white px-8 py-2 rounded-full">Thử lại</button>
+                </div>
               </div>
             )}
 
@@ -246,6 +316,7 @@ const App: React.FC = () => {
 
       <footer className="mt-16 pb-8 text-center text-slate-400 text-sm">
         <p>&copy; {new Date().getFullYear()} Doc2Latex/HTML Converter. Powered by Gemini AI.</p>
+        <button onClick={handleSelectKey} className="text-blue-500 hover:underline mt-2">Thay đổi API Key</button>
       </footer>
     </div>
   );
