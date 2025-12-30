@@ -6,7 +6,7 @@ export const convertToLatexHtml = async (
   base64Images: string[],
   textContext: string = ""
 ): Promise<ConversionResult> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.GEMINI.API_KEY });
   
   const modelName = 'gemini-3-flash-preview';
   
