@@ -6,10 +6,10 @@ export const convertToLatexHtml = async (
   base64Images: string[],
   textContext: string = ""
 ): Promise<ConversionResult> => {
-  // Tạo instance mới mỗi lần gọi để đảm bảo lấy đúng API Key hiện tại
+  // Khởi tạo instance mới để lấy API key từ môi trường (process.env.API_KEY)
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  // Sử dụng Gemini 3 Flash cho tốc độ xử lý nhanh và độ tin cậy cao
+  // Sử dụng Gemini 3 Flash cho tốc độ và khả năng hiểu tiếng Việt tốt
   const modelName = 'gemini-3-flash-preview';
   
   const imageParts = base64Images.map(base64 => ({
@@ -20,16 +20,21 @@ export const convertToLatexHtml = async (
   }));
 
   const textPart = {
-    text: `You are a professional document converter. I will provide you with images of document pages.
-    Your task is to:
-    1. Extract all text, formulas, and describe images/tables accurately.
-    2. Convert the entire content into both LaTeX and clean semantic HTML formats.
-    3. Ensure math formulas are properly formatted in LaTeX ($ and $$) and standard HTML (using simple math markup or clean text).
-    4. If there are images in the source, insert placeholders like [IMAGE: description] in LaTeX and <figure><img alt="description"><figcaption>description</figcaption></figure> in HTML.
+    text: `Bạn là một chuyên gia chuyển đổi tài liệu sang định dạng văn bản học thuật chuyên nghiệp.
+    Nhiệm vụ của bạn:
+    1. Trích xuất toàn bộ nội dung từ hình ảnh/văn bản được cung cấp.
+    2. Quy tắc định dạng văn bản:
+       - Văn bản tiếng Việt thông thường: Giữ nguyên văn bản thuần túy.
+       - Toán học và Kỹ thuật: TẤT CẢ các con số đơn lẻ, ký hiệu (x, y, a, b...), tham số, đại lượng đo lường và công thức toán học PHẢI được bao bọc bởi ký hiệu LaTeX $ ... $ (cho inline) hoặc $$ ... $$ (cho block).
+       - Ví dụ: Thay vì viết "Diện tích S = 10m2", hãy viết "Diện tích $S = 10m^2$". Thay vì viết "x bằng 5", hãy viết "$x$ bằng $5$".
+    3. Chuyển đổi sang 2 định dạng:
+       - "latex": Mã nguồn LaTeX hoàn chỉnh (sử dụng gói amsmath).
+       - "html": HTML sạch, hiển thị các đoạn LaTeX giữ nguyên dấu $ để các thư viện như MathJax có thể render (hoặc hiển thị rõ ràng).
+    4. Đối với hình vẽ/đồ thị: Mô tả ngắn gọn trong dấu [IMAGE: mô tả].
     
-    Context from text extraction: ${textContext}
+    Bối cảnh văn bản: ${textContext}
     
-    Return the response strictly as a JSON object with two fields: "latex" and "html".`
+    Trả về kết quả dưới dạng JSON có 2 trường: "latex" và "html".`
   };
 
   try {
