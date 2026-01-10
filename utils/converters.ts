@@ -1,14 +1,19 @@
 import * as pdfjs from 'pdfjs-dist';
 import mammoth from 'mammoth';
 
-// Cấu hình Worker cho PDF.js bằng CDN tương ứng với phiên bản thư viện
-// Điều này cực kỳ quan trọng để không bị trắng trang khi đọc PDF
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+// Thầy thay đoạn GlobalWorkerOptions cũ bằng đoạn này:
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 export const pdfToImages = async (file: File): Promise<string[]> => {
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+    // Thêm cấu hình để tránh lỗi loading worker
+    const loadingTask = pdfjs.getDocument({
+      data: arrayBuffer,
+      useWorkerFetch: true,
+      isEvalSupported: false,
+    });
+    
     const pdf = await loadingTask.promise;
     const imageUrls: string[] = [];
 
