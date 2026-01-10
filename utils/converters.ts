@@ -3,7 +3,7 @@ import mammoth from 'mammoth';
 
 // Cấu hình Worker cho PDF.js bằng CDN tương ứng với phiên bản thư viện
 // Điều này cực kỳ quan trọng để không bị trắng trang khi đọc PDF
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${(pdfjs as any).version || '4.0.379'}/build/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
 export const pdfToImages = async (file: File): Promise<string[]> => {
   try {
