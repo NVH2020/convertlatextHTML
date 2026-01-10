@@ -6,10 +6,7 @@ export const convertToLatexHtml = async (
   base64Images: string[],
   textContext: string = ""
 ): Promise<ConversionResult> => {
-  // Khởi tạo instance mới để lấy API key từ môi trường (process.env.API_KEY)
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
-  // Sử dụng Gemini 3 Flash cho tốc độ và khả năng hiểu tiếng Việt tốt
   const modelName = 'gemini-3-flash-preview';
   
   const imageParts = base64Images.map(base64 => ({
@@ -20,21 +17,26 @@ export const convertToLatexHtml = async (
   }));
 
   const textPart = {
-    text: `Bạn là một chuyên gia chuyển đổi tài liệu sang định dạng văn bản học thuật chuyên nghiệp.
-    Nhiệm vụ của bạn:
-    1. Trích xuất toàn bộ nội dung từ hình ảnh/văn bản được cung cấp.
-    2. Quy tắc định dạng văn bản:
-       - Văn bản tiếng Việt thông thường: Giữ nguyên văn bản thuần túy.
-       - Toán học và Kỹ thuật: TẤT CẢ các con số đơn lẻ, ký hiệu (x, y, a, b...), tham số, đại lượng đo lường và công thức toán học PHẢI được bao bọc bởi ký hiệu LaTeX $ ... $ (cho inline) hoặc $$ ... $$ (cho block).
-       - Ví dụ: Thay vì viết "Diện tích S = 10m2", hãy viết "Diện tích $S = 10m^2$". Thay vì viết "x bằng 5", hãy viết "$x$ bằng $5$".
-    3. Chuyển đổi sang 2 định dạng:
-       - "latex": Mã nguồn LaTeX hoàn chỉnh (sử dụng gói amsmath).
-       - "html": HTML sạch, hiển thị các đoạn LaTeX giữ nguyên dấu $ để các thư viện như MathJax có thể render (hoặc hiển thị rõ ràng).
-    4. Đối với hình vẽ/đồ thị: Mô tả ngắn gọn trong dấu [IMAGE: mô tả].
+    text: `Bạn là một chuyên gia soạn thảo văn bản học thuật và toán học. 
+    Nhiệm vụ: Xử lý nội dung văn bản để chuẩn hóa các công thức toán học sang định dạng LaTeX ($...$) dùng cho MathType, đồng thời phải GIỮ NGUYÊN HOÀN TOÀN cấu trúc trình bày của bản gốc.
+
+    YÊU CẦU CHI TIẾT:
+    1. GIỮ NGUYÊN CẤU TRÚC: 
+       - Nếu nội dung cung cấp có các thẻ HTML (như <p>, <b>, <i>, <table>, <tr>, <td>, <ul>, <li>, <br>), bạn PHẢI giữ lại các thẻ này.
+       - Giữ nguyên các khoảng trắng, ngắt dòng (\n), thụt lề và đánh số câu.
+    2. CHUYỂN ĐỔI TOÁN HỌC:
+       - Tìm tất cả các con số, biến số (x, y, a, b...), tham số, đơn vị đo lường và công thức toán học.
+       - Bao bọc chúng bằng ký hiệu $...$. Ví dụ: $x^2 + y = 5$, $10 cm$, $Câu 1$.
+    3. HÌNH ẢNH:
+       - Giữ nguyên vị trí các hình ảnh. Nếu thấy mô tả hình ảnh hoặc placeholder, hãy dùng [HÌNH VẼ: mô tả].
+    4. ĐẦU RA (JSON):
+       - "latex": Văn bản thuần túy (Plain Text) có chứa $, giữ nguyên các ký tự ngắt dòng (\n).
+       - "html": Mã HTML hoàn chỉnh có chứa $, giữ nguyên định dạng in đậm, bảng biểu nếu có.
+
+    Nội dung gốc cần xử lý:
+    ${textContext}
     
-    Bối cảnh văn bản: ${textContext}
-    
-    Trả về kết quả dưới dạng JSON có 2 trường: "latex" và "html".`
+    Hãy trả về kết quả dưới dạng JSON với hai trường "latex" và "html".`
   };
 
   try {
@@ -49,14 +51,12 @@ export const convertToLatexHtml = async (
             latex: { type: Type.STRING },
             html: { type: Type.STRING },
           },
-          required: ["latex", "html"],
-          propertyOrdering: ["latex", "html"]
+          required: ["latex", "html"]
         }
       }
     });
 
-    const resultText = response.text || "{}";
-    return JSON.parse(resultText) as ConversionResult;
+    return JSON.parse(response.text || "{}") as ConversionResult;
   } catch (error: any) {
     console.error("Gemini conversion error:", error);
     throw error;
