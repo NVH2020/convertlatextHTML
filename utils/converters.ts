@@ -1,52 +1,63 @@
+import * as pdfjs from 'pdfjs-dist';
+import mammoth from 'mammoth';
 
-declare const pdfjsLib: any;
-declare const mammoth: any;
-
-// Configure PDF.js worker
-if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
-    (window as any).pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-}
+// Cấu hình Worker cho PDF.js bằng CDN tương ứng với phiên bản thư viện
+// Điều này cực kỳ quan trọng để không bị trắng trang khi đọc PDF
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${(pdfjs as any).version || '4.0.379'}/build/pdf.worker.min.mjs`;
 
 export const pdfToImages = async (file: File): Promise<string[]> => {
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const imageUrls: string[] = [];
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+    const imageUrls: string[] = [];
 
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: 2.0 });
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    canvas.height = viewport.height;
-    canvas.width = viewport.width;
+    // Chỉ lấy tối đa 5 trang đầu để tránh làm treo trình duyệt
+    const numPages = Math.min(pdf.numPages, 5);
 
-    await page.render({ canvasContext: context, viewport }).promise;
-    imageUrls.push(canvas.toDataURL('image/jpeg', 0.8));
-    
-    // Safety limit for large docs
-    if (i >= 10) break; 
+    for (let i = 1; i <= numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 1.5 }); // Giảm scale xuống 1.5 để nhẹ hơn
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      
+      if (!context) continue;
+
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      await page.render({ canvasContext: context, viewport }).promise;
+      imageUrls.push(canvas.toDataURL('image/jpeg', 0.8));
+    }
+
+    return imageUrls;
+  } catch (error) {
+    console.error("Lỗi chuyển đổi PDF:", error);
+    throw new Error("Không thể đọc file PDF. Thầy kiểm tra lại file nhé!");
   }
-
-  return imageUrls;
 };
 
 export const docxToHtmlAndImages = async (file: File): Promise<{ html: string, images: string[] }> => {
-  const arrayBuffer = await file.arrayBuffer();
-  
-  // Extract images and text
-  const images: string[] = [];
-  const options = {
-    convertImage: mammoth.images.inline((element: any) => {
-      return element.read("base64").then((imageBuffer: any) => {
-        const base64 = `data:${element.contentType};base64,${imageBuffer.base64}`;
-        images.push(base64);
-        return { src: base64 };
-      });
-    })
-  };
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const images: string[] = [];
+    
+    const options = {
+      convertImage: mammoth.images.inline((element: any) => {
+        return element.read("base64").then((imageBuffer: any) => {
+          const base64 = `data:${element.contentType};base64,${imageBuffer.base64}`;
+          images.push(base64);
+          return { src: base64 };
+        });
+      })
+    };
 
-  const result = await mammoth.convertToHtml({ arrayBuffer }, options);
-  return { html: result.value, images };
+    const result = await mammoth.convertToHtml({ arrayBuffer }, options);
+    return { html: result.value, images };
+  } catch (error) {
+    console.error("Lỗi chuyển đổi Word:", error);
+    throw new Error("Không thể đọc file Word. File có thể bị khóa hoặc lỗi định dạng.");
+  }
 };
 
 export const downloadFile = (content: string, fileName: string, contentType: string) => {
