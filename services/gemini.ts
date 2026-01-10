@@ -6,8 +6,10 @@ export const convertToLatexHtml = async (
   base64Images: string[],
   textContext: string = ""
 ): Promise<ConversionResult> => {
+  // Khởi tạo AI với Key từ môi trường (được tiêm qua window.aistudio)
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  // Sử dụng gemini-3-pro-preview để có độ chính xác cao nhất về định dạng
+  
+  // Sử dụng mô hình Pro để có khả năng tuân thủ định dạng tốt nhất
   const modelName = 'gemini-3-pro-preview';
   
   const imageParts = base64Images.map(base64 => ({
@@ -17,47 +19,39 @@ export const convertToLatexHtml = async (
     }
   }));
 
-  const textPart = {
-    text: `Bạn là một công cụ trích xuất và chuẩn hóa công thức toán học. 
-    NHIỆM VỤ: 
-    1. Giữ nguyên 100% văn bản gốc, bao gồm cả các nhãn "Câu 1.", "Câu 2.", "Bài tập:", các dấu ngắt dòng, khoảng trắng và thứ tự các đoạn văn.
-    2. CHỈ tìm và chuyển đổi các công thức toán học, biểu thức, biến số (x, y, f(x)...) hoặc các con số nằm trong ngữ cảnh toán học sang định dạng LaTeX và bao bọc bởi duy nhất một cặp dấu $.
-    3. KHÔNG được thêm bất kỳ văn bản giải thích nào, không được tóm tắt, không được thay đổi từ ngữ của người dùng.
-    4. Nếu đầu vào có các thẻ HTML (như <p>, <br>, <b>, <table>), hãy giữ nguyên các thẻ đó ở trường "html".
-
-    VÍ DỤ:
-    Gốc: "Câu 1. Cho hàm số y = 2x + 1. Tính đạo hàm y'."
-    Kết quả: "Câu 1. Cho hàm số $y = 2x + 1$. Tính đạo hàm $y'$."
-
-    Nội dung cần xử lý:
-    ${textContext}
-    
-    Hãy trả về JSON với:
-    - "latex": Văn bản thuần có dấu $ và giữ nguyên ngắt dòng (\n).
-    - "html": Văn bản có thẻ HTML (nếu có ở đầu vào) và dấu $.`
-  };
+  const response = await ai.models.generateContent({
+    model: modelName,
+    contents: { parts: [...imageParts, { text: `Nội dung cần xử lý:\n${textContext}` }] },
+    config: {
+      systemInstruction: `Bạn là một công cụ định dạng văn bản toán học chính xác 100%.
+      
+      NHIỆM VỤ DUY NHẤT:
+      1. COPY HOÀN TOÀN văn bản gốc, bao gồm tất cả các nhãn (Câu 1, Câu 2...), ngắt dòng, khoảng trắng và dấu câu. KHÔNG ĐƯỢC THAY ĐỔI BẤT KỲ CHỮ NÀO.
+      2. Chỉ tìm các thành phần toán học (biến số x, y, z; con số 1, 2, 3 trong ngữ cảnh tính toán; các biểu thức; đơn vị đo) và bao bọc chúng bằng duy nhất một cặp dấu $.
+      3. Tuyệt đối KHÔNG thêm văn bản giải thích, KHÔNG dùng Markdown (như ### hoặc **), KHÔNG tóm tắt.
+      
+      VÍ DỤ:
+      Input: "Câu 1. Cho x = 5. Tính x + 1?"
+      Output: "Câu 1. Cho $x = 5$. Tính $x + 1$?"
+      
+      Định dạng đầu ra: Trả về JSON với 2 trường "latex" (văn bản thuần có dấu $) và "html" (văn bản có thẻ <p> và <br> để giữ ngắt dòng).`,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          latex: { type: Type.STRING },
+          html: { type: Type.STRING },
+        },
+        required: ["latex", "html"]
+      },
+      temperature: 0, // Đặt bằng 0 để đảm bảo tính nhất quán tuyệt đối
+    }
+  });
 
   try {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: { parts: [...imageParts, textPart] },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            latex: { type: Type.STRING },
-            html: { type: Type.STRING },
-          },
-          required: ["latex", "html"]
-        },
-        temperature: 0.1, // Giảm temperature để tránh việc AI tự ý sáng tạo hoặc thay đổi định dạng
-      }
-    });
-
     return JSON.parse(response.text || "{}") as ConversionResult;
-  } catch (error: any) {
-    console.error("Gemini conversion error:", error);
-    throw error;
+  } catch (error) {
+    console.error("Lỗi parse JSON từ Gemini:", error);
+    throw new Error("Mô hình không trả về đúng định dạng JSON.");
   }
 };
