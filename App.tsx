@@ -107,6 +107,10 @@ const App: React.FC = () => {
     const fileName = currentFile.file.name.replace(/\.[^/.]+$/, "") + "_Math.doc";
     downloadFile(sourceHTML, fileName, 'application/msword');
   };
+  const reset = () => {
+    setCurrentFile(null);
+    setIsProcessing(false);
+  };
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 min-h-screen flex flex-col font-sans bg-slate-50 text-slate-900">
