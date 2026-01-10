@@ -7,7 +7,8 @@ export const convertToLatexHtml = async (
   textContext: string = ""
 ): Promise<ConversionResult> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const modelName = 'gemini-3-flash-preview';
+  // Sử dụng gemini-3-pro-preview để có độ chính xác cao nhất về định dạng
+  const modelName = 'gemini-3-pro-preview';
   
   const imageParts = base64Images.map(base64 => ({
     inlineData: {
@@ -17,26 +18,23 @@ export const convertToLatexHtml = async (
   }));
 
   const textPart = {
-    text: `Bạn là một chuyên gia soạn thảo văn bản học thuật và toán học. 
-    Nhiệm vụ: Xử lý nội dung văn bản để chuẩn hóa các công thức toán học sang định dạng LaTeX ($...$) dùng cho MathType, đồng thời phải GIỮ NGUYÊN HOÀN TOÀN cấu trúc trình bày của bản gốc.
+    text: `Bạn là một công cụ trích xuất và chuẩn hóa công thức toán học. 
+    NHIỆM VỤ: 
+    1. Giữ nguyên 100% văn bản gốc, bao gồm cả các nhãn "Câu 1.", "Câu 2.", "Bài tập:", các dấu ngắt dòng, khoảng trắng và thứ tự các đoạn văn.
+    2. CHỈ tìm và chuyển đổi các công thức toán học, biểu thức, biến số (x, y, f(x)...) hoặc các con số nằm trong ngữ cảnh toán học sang định dạng LaTeX và bao bọc bởi duy nhất một cặp dấu $.
+    3. KHÔNG được thêm bất kỳ văn bản giải thích nào, không được tóm tắt, không được thay đổi từ ngữ của người dùng.
+    4. Nếu đầu vào có các thẻ HTML (như <p>, <br>, <b>, <table>), hãy giữ nguyên các thẻ đó ở trường "html".
 
-    YÊU CẦU CHI TIẾT:
-    1. GIỮ NGUYÊN CẤU TRÚC: 
-       - Nếu nội dung cung cấp có các thẻ HTML (như <p>, <b>, <i>, <table>, <tr>, <td>, <ul>, <li>, <br>), bạn PHẢI giữ lại các thẻ này.
-       - Giữ nguyên các khoảng trắng, ngắt dòng (\n), thụt lề và đánh số câu.
-    2. CHUYỂN ĐỔI TOÁN HỌC:
-       - Tìm tất cả các con số, biến số (x, y, a, b...), tham số, đơn vị đo lường và công thức toán học.
-       - Bao bọc chúng bằng ký hiệu $...$. Ví dụ: $x^2 + y = 5$, $10 cm$, $Câu 1$.
-    3. HÌNH ẢNH:
-       - Giữ nguyên vị trí các hình ảnh. Nếu thấy mô tả hình ảnh hoặc placeholder, hãy dùng [HÌNH VẼ: mô tả].
-    4. ĐẦU RA (JSON):
-       - "latex": Văn bản thuần túy (Plain Text) có chứa $, giữ nguyên các ký tự ngắt dòng (\n).
-       - "html": Mã HTML hoàn chỉnh có chứa $, giữ nguyên định dạng in đậm, bảng biểu nếu có.
+    VÍ DỤ:
+    Gốc: "Câu 1. Cho hàm số y = 2x + 1. Tính đạo hàm y'."
+    Kết quả: "Câu 1. Cho hàm số $y = 2x + 1$. Tính đạo hàm $y'$."
 
-    Nội dung gốc cần xử lý:
+    Nội dung cần xử lý:
     ${textContext}
     
-    Hãy trả về kết quả dưới dạng JSON với hai trường "latex" và "html".`
+    Hãy trả về JSON với:
+    - "latex": Văn bản thuần có dấu $ và giữ nguyên ngắt dòng (\n).
+    - "html": Văn bản có thẻ HTML (nếu có ở đầu vào) và dấu $.`
   };
 
   try {
@@ -52,7 +50,8 @@ export const convertToLatexHtml = async (
             html: { type: Type.STRING },
           },
           required: ["latex", "html"]
-        }
+        },
+        temperature: 0.1, // Giảm temperature để tránh việc AI tự ý sáng tạo hoặc thay đổi định dạng
       }
     });
 
