@@ -6,10 +6,7 @@ export const convertToLatexHtml = async (
   base64Images: string[],
   textContext: string = ""
 ): Promise<ConversionResult> => {
-  // Khởi tạo AI với Key từ môi trường (được tiêm qua window.aistudio)
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
-  // Sử dụng mô hình Pro để có khả năng tuân thủ định dạng tốt nhất
   const modelName = 'gemini-3-pro-preview';
   
   const imageParts = base64Images.map(base64 => ({
@@ -21,20 +18,36 @@ export const convertToLatexHtml = async (
 
   const response = await ai.models.generateContent({
     model: modelName,
-    contents: { parts: [...imageParts, { text: `Nội dung cần xử lý:\n${textContext}` }] },
+    contents: { parts: [...imageParts, { text: `Dữ liệu gốc cần chuyển đổi:\n${textContext}` }] },
     config: {
-      systemInstruction: `Bạn là một công cụ định dạng văn bản toán học chính xác 100%.
-      
-      NHIỆM VỤ DUY NHẤT:
-      1. COPY HOÀN TOÀN văn bản gốc, bao gồm tất cả các nhãn (Câu 1, Câu 2...), ngắt dòng, khoảng trắng và dấu câu. KHÔNG ĐƯỢC THAY ĐỔI BẤT KỲ CHỮ NÀO.
-      2. Chỉ tìm các thành phần toán học (biến số x, y, z; con số 1, 2, 3 trong ngữ cảnh tính toán; các biểu thức; đơn vị đo) và bao bọc chúng bằng duy nhất một cặp dấu $.
-      3. Tuyệt đối KHÔNG thêm văn bản giải thích, KHÔNG dùng Markdown (như ### hoặc **), KHÔNG tóm tắt.
-      
-      VÍ DỤ:
-      Input: "Câu 1. Cho x = 5. Tính x + 1?"
-      Output: "Câu 1. Cho $x = 5$. Tính $x + 1$?"
-      
-      Định dạng đầu ra: Trả về JSON với 2 trường "latex" (văn bản thuần có dấu $) và "html" (văn bản có thẻ <p> và <br> để giữ ngắt dòng).`,
+      systemInstruction: `Bạn là một trợ lý số hóa tài liệu toán học cực kỳ chính xác và tuân thủ định dạng. Nhiệm vụ của bạn là gõ lại tài liệu từ hình ảnh/văn bản cung cấp.
+
+QUY TẮC BẮT BUỘC:
+1. ĐỊNH DẠNG CÔNG THỨC: 
+   - Sử dụng DUY NHẤT cặp dấu $$ ... $$ để bao bọc tất cả các ký hiệu toán học, biến số, tên điểm, hình học và biểu thức (ví dụ: $$x$$, $$ABC$$, $$f(x) = x^2$$).
+   - KHÔNG sử dụng \\( ... \\) hay $ ... $.
+   - Các chữ cái trong $$ tự động được LaTeX hiểu là in nghiêng, hãy gõ đúng mã LaTeX.
+
+2. VĂN BẢN TIẾNG VIỆT:
+   - CHỈ GÕ LẠI Y HỆT những gì có trong tài liệu. 
+   - TUYỆT ĐỐI KHÔNG thêm lời dẫn, không giải thích, không tóm tắt, không sửa câu chữ của người dùng.
+   - Giữ nguyên các nhãn "Câu 1.", "Câu 2.", "Lời giải:", "Đáp án:".
+
+3. BẢNG BIỂU (TABLE):
+   - Chuyển đổi bảng dữ liệu sang môi trường \\begin{tabular} ... \\end{tabular}.
+
+4. BẢNG BIẾN THIÊN (VARIATION TABLES):
+   - Chuyển bảng biến thiên thành bảng LaTeX đơn giản.
+   - Sử dụng các mũi tên: \\uparrow, \\downarrow, \\nearrow, \\searrow để mô tả chiều biến thiên.
+
+5. LỌC DỮ LIỆU:
+   - Loại bỏ các thông tin thừa không thuộc nội dung đề bài như Header (Tên trường, Sở), Footer (Số trang).
+
+Trả về định dạng JSON:
+{
+  "latex": "Văn bản gõ lại hoàn chỉnh với các công thức đặt trong $$",
+  "html": "Văn bản đã được định dạng cơ bản với thẻ <p> để giữ cấu trúc xuống dòng"
+}`,
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -44,14 +57,14 @@ export const convertToLatexHtml = async (
         },
         required: ["latex", "html"]
       },
-      temperature: 0, // Đặt bằng 0 để đảm bảo tính nhất quán tuyệt đối
+      temperature: 0,
     }
   });
 
   try {
     return JSON.parse(response.text || "{}") as ConversionResult;
   } catch (error) {
-    console.error("Lỗi parse JSON từ Gemini:", error);
-    throw new Error("Mô hình không trả về đúng định dạng JSON.");
+    console.error("Lỗi phân tích JSON:", error);
+    throw new Error("Mô hình gặp khó khăn khi xử lý cấu trúc này. Vui lòng kiểm tra lại file.");
   }
 };
