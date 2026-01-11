@@ -18,35 +18,40 @@ export const convertToLatexHtml = async (
 
   const response = await ai.models.generateContent({
     model: modelName,
-    contents: { parts: [...imageParts, { text: `Dữ liệu gốc cần chuyển đổi:\n${textContext}` }] },
+    contents: { parts: [...imageParts, { text: `Dữ liệu gốc:\n${textContext}` }] },
     config: {
-      systemInstruction: `Bạn là một trợ lý số hóa tài liệu toán học cực kỳ chính xác và tuân thủ định dạng. Nhiệm vụ của bạn là gõ lại tài liệu từ hình ảnh/văn bản cung cấp.
+      systemInstruction: `Bạn là một chuyên gia số hóa tài liệu toán học chuyên nghiệp. Hãy gõ lại tài liệu từ hình ảnh/văn bản cung cấp theo các quy tắc nghiêm ngặt sau:
 
-QUY TẮC BẮT BUỘC:
-1. ĐỊNH DẠNG CÔNG THỨC: 
-   - Sử dụng DUY NHẤT cặp dấu $$ ... $$ để bao bọc tất cả các ký hiệu toán học, biến số, tên điểm, hình học và biểu thức (ví dụ: $$x$$, $$ABC$$, $$f(x) = x^2$$).
-   - KHÔNG sử dụng \\( ... \\) hay $ ... $.
-   - Các chữ cái trong $$ tự động được LaTeX hiểu là in nghiêng, hãy gõ đúng mã LaTeX.
+1. ĐỊNH DẠNG TOÁN HỌC:
+   - TẤT CẢ các công thức, biến số (x, y...), và ĐỈNH HÌNH HỌC (A, B, C, ABC, S.ABCD) PHẢI nằm trong cặp dấu $ đơn (ví dụ: $x^2 + 1$, $ABC$, $S.ABCD$).
+   - Ký tự trong cặp dấu $ phải được hiểu là in nghiêng trong LaTeX.
+   - Sử dụng \\begin{cases} ... \\end{cases} cho các hệ phương trình hoặc hệ điều kiện.
+   - Ký hiệu ĐỘ sử dụng ^\\circ (ví dụ: $60^\\circ$).
 
-2. VĂN BẢN TIẾNG VIỆT:
-   - CHỈ GÕ LẠI Y HỆT những gì có trong tài liệu. 
-   - TUYỆT ĐỐI KHÔNG thêm lời dẫn, không giải thích, không tóm tắt, không sửa câu chữ của người dùng.
-   - Giữ nguyên các nhãn "Câu 1.", "Câu 2.", "Lời giải:", "Đáp án:".
+2. BẢNG BIẾN THIÊN (BBT) - QUY TẮC MỚI:
+   - KHÔNG dùng mã \\begin{tabular} và KHÔNG dùng định dạng bảng Markdown (dấu --- bọc dưới tiêu đề).
+   - Hãy trình bày BBT dưới dạng bảng văn bản thủ công bằng các ký tự gạch đứng | và gạch ngang -.
+   - Sử dụng | để phân cách các cột dữ liệu rõ ràng.
+   - Dùng mũi tên: \\nearrow (lên) và \\searrow (xuống).
+   - Ví dụ cách trình bày BBT:
+     x  | -\infty      0      +\infty
+     ---|---------------------------
+     y' |      +      |      -
+     ---|---------------------------
+     y  | -\infty \nearrow 1 \searrow -\infty
 
-3. BẢNG BIỂU (TABLE):
-   - Chuyển đổi bảng dữ liệu sang môi trường \\begin{tabular} ... \\end{tabular}.
+3. HÌNH VẼ MINH HỌA:
+   - Nếu trong câu có hình vẽ, đồ thị hoặc sơ đồ, hãy chèn ngay đoạn: [Có hình vẽ minh họa] vào đúng vị trí trong câu đó.
 
-4. BẢNG BIẾN THIÊN (VARIATION TABLES):
-   - Chuyển bảng biến thiên thành bảng LaTeX đơn giản.
-   - Sử dụng các mũi tên: \\uparrow, \\downarrow, \\nearrow, \\searrow để mô tả chiều biến thiên.
+4. CHỈ GÕ LẠI (STRICT RETYPING):
+   - Giữ nguyên định dạng "Câu 1.", "Câu 2.", và các phương án "A.", "B.", "C.", "D.".
+   - Tuyệt đối bỏ qua phần Header (Tên trường, Sở, Mã đề) và Footer (Số trang, chữ "Hết").
+   - Không thêm lời dẫn, không giải thích, chỉ gõ lại nội dung nguyên bản.
 
-5. LỌC DỮ LIỆU:
-   - Loại bỏ các thông tin thừa không thuộc nội dung đề bài như Header (Tên trường, Sở), Footer (Số trang).
-
-Trả về định dạng JSON:
+Trả về kết quả dưới dạng JSON:
 {
-  "latex": "Văn bản gõ lại hoàn chỉnh với các công thức đặt trong $$",
-  "html": "Văn bản đã được định dạng cơ bản với thẻ <p> để giữ cấu trúc xuống dòng"
+  "latex": "Nội dung văn bản gõ lại hoàn chỉnh",
+  "html": "Nội dung văn bản tương ứng bọc trong thẻ <p>"
 }`,
       responseMimeType: "application/json",
       responseSchema: {
@@ -65,6 +70,6 @@ Trả về định dạng JSON:
     return JSON.parse(response.text || "{}") as ConversionResult;
   } catch (error) {
     console.error("Lỗi phân tích JSON:", error);
-    throw new Error("Mô hình gặp khó khăn khi xử lý cấu trúc này. Vui lòng kiểm tra lại file.");
+    throw new Error("Không thể xử lý tài liệu. Vui lòng thử lại với hình ảnh rõ nét hơn.");
   }
 };
