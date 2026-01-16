@@ -9,7 +9,8 @@ export const convertToLatexHtml = async (
   
   const genAI = new GoogleGenerativeAI(apiKey);
   // Dùng gemini-1.5-flash cho ổn định
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+ // Sửa dòng này:
+const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
 
   const imageParts = base64Images.map(base64 => ({
     inlineData: {
