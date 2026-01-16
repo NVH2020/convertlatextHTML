@@ -1,14 +1,20 @@
-
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai"; // Đảm bảo dùng đúng thư viện chính thức
 import { ConversionResult } from "../types";
 
 export const convertToLatexHtml = async (
   base64Images: string[],
-  textContext: string = ""
+  textContext: string = "",
+  apiKey: string // THÊM THAM SỐ NÀY
 ): Promise<ConversionResult> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const modelName = 'gemini-3-pro-preview';
   
+  // Khởi tạo AI bằng API Key người dùng cung cấp từ App.tsx
+  const genAI = new GoogleGenerativeAI(apiKey);
+  
+  // Sử dụng model 1.5-flash để tốc độ nhanh và ổn định nhất
+  const model = genAI.getGenerativeModel({ 
+    model: "gemini-1.5-flash",
+  });
+
   const imageParts = base64Images.map(base64 => ({
     inlineData: {
       mimeType: 'image/jpeg',
@@ -16,60 +22,56 @@ export const convertToLatexHtml = async (
     }
   }));
 
-  const response = await ai.models.generateContent({
-    model: modelName,
-    contents: { parts: [...imageParts, { text: `Dữ liệu gốc:\n${textContext}` }] },
-    config: {
-      systemInstruction: `Bạn là một chuyên gia số hóa tài liệu toán học chuyên nghiệp. Hãy gõ lại tài liệu từ hình ảnh/văn bản cung cấp theo các quy tắc nghiêm ngặt sau:
+  const prompt = `Dữ liệu gốc:\n${textContext}`;
+
+  const result = await model.generateContent({
+    contents: [{ 
+        role: "user", 
+        parts: [...imageParts, { text: prompt }] 
+    }],
+    generationConfig: {
+      temperature: 0,
+      responseMimeType: "application/json",
+    },
+    systemInstruction: `Bạn là một chuyên gia số hóa tài liệu toán học chuyên nghiệp. Hãy gõ lại tài liệu từ hình ảnh/văn bản cung cấp theo các quy tắc nghiêm ngặt sau:
 
 1. ĐỊNH DẠNG TOÁN HỌC:
    - TẤT CẢ các công thức, biến số (x, y...), và ĐỈNH HÌNH HỌC (A, B, C, ABC, S.ABCD) PHẢI nằm trong cặp dấu $ đơn (ví dụ: $x^2 + 1$, $ABC$, $S.ABCD$).
-   - Ký tự trong cặp dấu $ phải được hiểu là in nghiêng trong LaTeX.
    - Sử dụng \\begin{cases} ... \\end{cases} cho các hệ phương trình hoặc hệ điều kiện.
    - Ký hiệu ĐỘ sử dụng ^\\circ (ví dụ: $60^\\circ$).
 
-2. BẢNG BIẾN THIÊN (BBT) - QUY TẮC MỚI:
-   - KHÔNG dùng mã \\begin{tabular} và KHÔNG dùng định dạng bảng Markdown (dấu --- bọc dưới tiêu đề).
+2. BẢNG BIẾN THIÊN (BBT):
+   - KHÔNG dùng mã \\begin{tabular} và KHÔNG dùng định dạng bảng Markdown.
    - Hãy trình bày BBT dưới dạng bảng văn bản thủ công bằng các ký tự gạch đứng | và gạch ngang -.
-   - Sử dụng | để phân cách các cột dữ liệu rõ ràng.
-   - Dùng mũi tên: \\nearrow (lên) và \\searrow (xuống).
-   - Ví dụ cách trình bày BBT:
-     x  | -\infty      0      +\infty
+   - Sử dụng mũi tên: \\nearrow (lên) và \\searrow (xuống).
+   - Ví dụ:
+     x  | -\\infty      0      +\\infty
      ---|---------------------------
      y' |      +      |      -
      ---|---------------------------
-     y  | -\infty \nearrow 1 \searrow -\infty
+     y  | -\\infty \\nearrow 1 \\searrow -\\infty
 
 3. HÌNH VẼ MINH HỌA:
-   - Nếu trong câu có hình vẽ, đồ thị hoặc sơ đồ, hãy chèn ngay đoạn: [Có hình vẽ minh họa] vào đúng vị trí trong câu đó.
+   - Nếu có hình vẽ, đồ thị, hãy chèn: [Có hình vẽ minh họa] vào đúng vị trí.
 
 4. CHỈ GÕ LẠI (STRICT RETYPING):
-   - Giữ nguyên định dạng "Câu 1.", "Câu 2.", và các phương án "A.", "B.", "C.", "D.".
-   - Tuyệt đối bỏ qua phần Header (Tên trường, Sở, Mã đề) và Footer (Số trang, chữ "Hết").
-   - Không thêm lời dẫn, không giải thích, chỉ gõ lại nội dung nguyên bản.
+   - Giữ nguyên "Câu 1.", "Câu 2.", và các phương án "A.", "B.", "C.", "D.".
+   - Bỏ qua Header (Tên trường, mã đề) và Footer hoàn toàn.
 
-Trả về kết quả dưới dạng JSON:
+Trả về kết quả JSON:
 {
-  "latex": "Nội dung văn bản gõ lại hoàn chỉnh",
-  "html": "Nội dung văn bản tương ứng bọc trong thẻ <p>"
+  "latex": "Văn bản gõ lại hoàn chỉnh",
+  "html": "Văn bản bọc trong thẻ <p>"
 }`,
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          latex: { type: Type.STRING },
-          html: { type: Type.STRING },
-        },
-        required: ["latex", "html"]
-      },
-      temperature: 0,
-    }
   });
 
+  const response = await result.response;
+  const output = response.text();
+
   try {
-    return JSON.parse(response.text || "{}") as ConversionResult;
+    return JSON.parse(output) as ConversionResult;
   } catch (error) {
     console.error("Lỗi phân tích JSON:", error);
-    throw new Error("Không thể xử lý tài liệu. Vui lòng thử lại với hình ảnh rõ nét hơn.");
+    throw new Error("Không thể xử lý tài liệu. Hãy đảm bảo API Key chính xác và hình ảnh rõ nét.");
   }
 };
