@@ -1,19 +1,15 @@
-import { GoogleGenerativeAI } from "@google/generative-ai"; // Đảm bảo dùng đúng thư viện chính thức
+import { GoogleGenerativeAI } from "@google/generative-ai"; // Dùng bản này mới chuẩn
 import { ConversionResult } from "../types";
 
 export const convertToLatexHtml = async (
   base64Images: string[],
   textContext: string = "",
-  apiKey: string // THÊM THAM SỐ NÀY
+  apiKey: string 
 ): Promise<ConversionResult> => {
   
-  // Khởi tạo AI bằng API Key người dùng cung cấp từ App.tsx
   const genAI = new GoogleGenerativeAI(apiKey);
-  
-  // Sử dụng model 1.5-flash để tốc độ nhanh và ổn định nhất
-  const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash",
-  });
+  // Dùng gemini-1.5-flash cho ổn định
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
   const imageParts = base64Images.map(base64 => ({
     inlineData: {
@@ -22,6 +18,7 @@ export const convertToLatexHtml = async (
     }
   }));
 
+  // ... (phần còn lại giữ nguyên như bản trước)
   const prompt = `Dữ liệu gốc:\n${textContext}`;
 
   const result = await model.generateContent({
