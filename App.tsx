@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { FileType, ProcessingFile } from './types';
 import { pdfToImages, docxToHtmlAndImages } from './utils/converters';
 import { convertToLatexHtml } from './services/gemini';
-import { FileText, Settings, Key, CheckCircle2, XCircle, Copy, BookOpen } from 'lucide-react';
+
+// XÓA dòng import lucide-react đi thầy nhé
 
 const App: React.FC = () => {
   const [currentFile, setCurrentFile] = useState<ProcessingFile | null>(null);
