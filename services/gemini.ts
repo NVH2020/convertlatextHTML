@@ -9,16 +9,10 @@ export const convertToLatexHtml = async (
   
   const genAI = new GoogleGenerativeAI(apiKey);
 
-  // ĐƯA SYSTEM INSTRUCTION VÀO ĐÂY (Cách mới nhất của Google)
+  // DÙNG TÊN MODEL NÀY - KHÔNG THÊM LATEST, KHÔNG THÊM MODELS/
+  // Đây là tên chuẩn nhất cho API hiện tại
   const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash-latest", // Dùng bản latest để tránh lỗi version
-    systemInstruction: `Bạn là một chuyên gia số hóa tài liệu toán học chuyên nghiệp. Hãy gõ lại tài liệu từ hình ảnh/văn bản cung cấp theo các quy tắc:
-    1. Toán học: Bao bằng dấu $ (ví dụ: $x^2$, $ABC$).
-    2. Hệ phương trình: Dùng \\begin{cases}.
-    3. BBT: Dùng | và - để vẽ bảng, dùng \\nearrow và \\searrow.
-    4. Hình vẽ: Chèn [Có hình vẽ minh họa].
-    5. Chỉ gõ lại nội dung, bỏ qua Header/Footer.
-    Trả về JSON: {"latex": "...", "html": "..."}`
+    model: "gemini-1.5-flash" 
   });
 
   const imageParts = base64Images.map(base64 => ({
@@ -28,24 +22,34 @@ export const convertToLatexHtml = async (
     }
   }));
 
-  const result = await model.generateContent({
-    contents: [{ 
-      role: "user", 
-      parts: [...imageParts, { text: `Dữ liệu gốc:\n${textContext}` }] 
-    }],
-    generationConfig: {
-      temperature: 0,
-      responseMimeType: "application/json",
-    },
-  });
+  // Gộp tất cả yêu cầu vào một Prompt duy nhất (Bỏ systemInstruction tách biệt)
+  const mainPrompt = `
+Bạn là một chuyên gia số hóa toán học. Hãy gõ lại tài liệu từ hình ảnh theo các quy tắc:
+1. Toán học: Bao bằng dấu $ (ví dụ: $x^2$, $ABC$).
+2. Hệ phương trình: Dùng \\begin{cases}.
+3. BBT: Dùng ký tự | và - để vẽ bảng, dùng \\nearrow và \\searrow.
+4. Hình vẽ: Chèn [Có hình vẽ minh họa].
+5. Chỉ gõ lại nội dung, bỏ qua Header/Footer.
 
-  const response = await result.response;
-  const output = response.text();
+Dữ liệu gốc bổ sung: ${textContext}
+
+Trả về DUY NHẤT một mã JSON theo cấu trúc:
+{
+  "latex": "nội dung văn bản",
+  "html": "nội dung bọc trong thẻ p"
+}`;
 
   try {
-    return JSON.parse(output) as ConversionResult;
-  } catch (error) {
-    console.error("Lỗi phân tích JSON:", error);
-    throw new Error("AI trả về định dạng không đúng. Thầy hãy thử lại với ảnh rõ hơn.");
+    const result = await model.generateContent([mainPrompt, ...imageParts]);
+    const response = await result.response;
+    const output = response.text();
+
+    // Làm sạch chuỗi nếu AI trả về có bọc dấu ```json
+    const cleanJson = output.replace(/```json|```/g, "").trim();
+    return JSON.parse(cleanJson) as ConversionResult;
+  } catch (error: any) {
+    console.error("Lỗi chi tiết:", error);
+    // Nếu vẫn 404, thử đổi model trong code sang "gemini-1.5-pro"
+    throw new Error("Lỗi kết nối AI: " + (error.message || "Thầy hãy kiểm tra lại API Key"));
   }
 };
