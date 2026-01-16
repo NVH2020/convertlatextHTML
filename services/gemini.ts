@@ -8,12 +8,7 @@ export const convertToLatexHtml = async (
 ): Promise<ConversionResult> => {
   
   const genAI = new GoogleGenerativeAI(apiKey);
-
-  // DÙNG TÊN MODEL NÀY - KHÔNG THÊM LATEST, KHÔNG THÊM MODELS/
-  // Đây là tên chuẩn nhất cho API hiện tại
-  const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash" 
-  });
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
   const imageParts = base64Images.map(base64 => ({
     inlineData: {
@@ -22,34 +17,30 @@ export const convertToLatexHtml = async (
     }
   }));
 
-  // Gộp tất cả yêu cầu vào một Prompt duy nhất (Bỏ systemInstruction tách biệt)
-  const mainPrompt = `
-Bạn là một chuyên gia số hóa toán học. Hãy gõ lại tài liệu từ hình ảnh theo các quy tắc:
-1. Toán học: Bao bằng dấu $ (ví dụ: $x^2$, $ABC$).
-2. Hệ phương trình: Dùng \\begin{cases}.
-3. BBT: Dùng ký tự | và - để vẽ bảng, dùng \\nearrow và \\searrow.
-4. Hình vẽ: Chèn [Có hình vẽ minh họa].
-5. Chỉ gõ lại nội dung, bỏ qua Header/Footer.
+  // PROMPT ĐẦY ĐỦ CÁC QUY TẮC CỦA THẦY
+  const prompt = `Bạn là một chuyên gia số hóa toán học. Hãy gõ lại tài liệu từ hình ảnh theo các quy tắc nghiêm ngặt:
+  1. Toán học: Tất cả công thức, biến số, đỉnh hình học PHẢI bao bằng dấu $ (ví dụ: $x^2$, $ABC$).
+  2. Hệ phương trình: Sử dụng \\begin{cases} ... \\end{cases}.
+  3. ĐƠN VỊ ĐỘ: Sử dụng ký hiệu ^\\circ (ví dụ: $60^\\circ$, $90^\\circ$).
+  4. BẢNG BIẾN THIÊN: Dùng ký tự | và - để vẽ bảng thủ công, dùng mũi tên \\nearrow và \\searrow.
+  5. Hình vẽ: Chèn [Có hình vẽ minh họa] vào vị trí tương ứng.
+  6. Loại bỏ hoàn toàn Header/Footer (tên trường, số trang).
 
-Dữ liệu gốc bổ sung: ${textContext}
+  Dữ liệu gốc bổ sung: ${textContext}
 
-Trả về DUY NHẤT một mã JSON theo cấu trúc:
-{
-  "latex": "nội dung văn bản",
-  "html": "nội dung bọc trong thẻ p"
-}`;
+  Trả về DUY NHẤT mã JSON: {"latex": "nội dung văn bản gõ lại", "html": "nội dung bọc trong thẻ p"}`;
 
   try {
-    const result = await model.generateContent([mainPrompt, ...imageParts]);
+    const result = await model.generateContent([prompt, ...imageParts]);
     const response = await result.response;
-    const output = response.text();
+    const text = response.text();
 
-    // Làm sạch chuỗi nếu AI trả về có bọc dấu ```json
-    const cleanJson = output.replace(/```json|```/g, "").trim();
+    const cleanJson = text.replace(/```json|```/g, "").trim();
     return JSON.parse(cleanJson) as ConversionResult;
+
   } catch (error: any) {
-    console.error("Lỗi chi tiết:", error);
-    // Nếu vẫn 404, thử đổi model trong code sang "gemini-1.5-pro"
-    throw new Error("Lỗi kết nối AI: " + (error.message || "Thầy hãy kiểm tra lại API Key"));
+    console.error("Lỗi:", error);
+    // Nếu vẫn lỗi 404, thầy hãy kiểm tra xem API Key đã được kích hoạt trong AI Studio chưa
+    throw new Error(`Lỗi kết nối AI: ${error.message}`);
   }
 };
